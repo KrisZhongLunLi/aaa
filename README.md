@@ -92,3 +92,39 @@ yast 可以新增帳號，或是使用 useradd, userdel。帳號 id 範圍為 0 
 例如：chmod +x file_name 為指定所有人可執行；chmod g-w file_name 為指定群組移除編輯權限
 
 也可以直接使用十進位數字轉換，例如 777 表示將 user, group, other 的權限都打開。
+
+'20240805'
+# 1 add repo
+'zypper ar "dir:///<path>/<folder>" <repo> 透過zypper在選定的檔案新增repo (ar 即是add repo)
+
+'zypper ar "iso:/?iso＝/<path>/<img>.iso" <repo> 透過zypper將iso檔新增到repo中
+
+# 2 install package mlocate
+運用rpm來進行package mlocate的掛載
+
+確認光碟有存入VM當中
+
+'su -' 在 VM 中以管理員身分登入
+
+'mount dev/sr0 /mnt' 用mount的指令進行掛載到前述的位址中
+
+進入到mnt目錄中即可確認掛載完成
+
+'cd Mount-Basesystem/x86_64' 進入到database中x86的版本
+
+'rpm -ql mlocate' 確認目錄中是否有mlocate
+
+'ls mlocate-*' 找尋mlocate的.rpm檔
+
+'rpm -ivh mlocate-xxx.rpm' 執行並下載mlocate.rpm
+
+-i ：install 的意思
+
+-v ：察看更細部的安裝資訊畫面
+
+-h ：以安裝資訊列顯示安裝進度
+
+'rpm -ql mlocate' 確認mlocate裝載完成
+
+# 3 install pattern devel_kernel
+'zypper in devel_pattern' 在可用的repo中找尋所求的pattern再進行安裝
