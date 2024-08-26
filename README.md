@@ -136,13 +136,88 @@ yast 可以新增帳號，或是使用 useradd, userdel。帳號 id 範圍為 0 
 
 SSH（Secure Shell）使用公鑰加密技術來實現安全的身份驗證和通信。這種技術依賴於一對密鑰：公鑰（Public Key）和私鑰（Private Key）。
 
-私鑰（Private Key）： 私鑰是完全保密的，它應該只存儲在你的設備上，並且永遠不應該與任何人分享。它的主要作用是用來解密由相應的公鑰加密的信息，並在進行身份驗證時生成數字簽名。
+私鑰（Private Key）： 私鑰是完全保密的，它應該只存儲在你的設備上並且不與任何人分享。它的主要作用是用來解密由相應的公鑰加密的信息，並在進行身份驗證時生成數字簽名。
 
 公鑰（Public Key）： 公鑰可以公開分享給其他人或服務器。它的作用是加密信息，這些信息只能由擁有相應私鑰的人解密。當你將公鑰放置在遠程伺服器的 ~/.ssh/authorized_keys 文件中時，該伺服器就能夠使用公鑰來驗證連接嘗試是否來自持有私鑰的合法使用者。
 
-密鑰生成：
-在 Linux 系統上，你可以使用 ssh-keygen 工具來生成公鑰和私鑰對。這個命令會根據你的選擇生成不同類型的密鑰對（如 RSA、DSA、ECDSA、ED25519 等）。生成密鑰後，系統會提示你選擇保存密鑰的位置。可以選擇設置一個密碼來保護你的私鑰，這樣即使私鑰文件被盜，攻擊者仍需知道這個密碼才能使用密鑰。
 # 1.2 禁止 Root 登入
-說明： 禁止 root 使用 SSH 直接登入是提高系統安全性的一種常見做法，因為 root 擁有最高權限，攻擊者利用 root 進行攻擊的風險很大。
+禁止 Root 使用 SSH 直接登入的重要性：
+
+在許多 Linux 系統中，root 是擁有最高權限的使用者。允許 root 通過 SSH 直接登入可能會給系統帶來很大的安全風險。攻擊者如果猜測或破解了 root 密碼，將會擁有系統的完全控制權。因此禁止 root 使用 SSH 直接登入，改用普通使用者登入後再通過 sudo 或 su 切換到 root。
+
+sudo nano /etc/ssh/sshd_config
+PermitRootLogin no
+sudo systemctl restart sshd
+
+這樣就禁止了 root 使用 SSH 登入。
+
 # 1.3 使用者免密碼登入 / 使用 SSH-Key
-說明： 免密碼登入允許使用者使用 SSH 密鑰而非密碼來進行認證，這通常比使用密碼更加安全。
+為什麼使用 SSH 密鑰進行免密碼登入：SSH 密鑰認證比傳統的密碼認證更加安全，因為密鑰難以被暴力破解。此外，SSH 密鑰支持長度更長的字串，這使得暴力破解更加困難。使用 SSH 密鑰進行免密碼登入能夠提高安全性，同時也免去了記住和管理多個密碼的麻煩。
+
+生成一對密鑰，其中私鑰保存在本地，公鑰可以用來配置免密碼登入：ssh-keygen -t rsa -b 4096 -C "email"
+使用以下命令將公鑰複製到你希望免密碼登入的遠程伺服器：ssh-copy-id username@remote_host
+登入遠端伺服器：ssh username@remote_host
+
+# 1.4 禁止使用者使用密碼登入，只能使用 Key
+限制登入方式以提高安全性：
+為了進一步提高 SSH 的安全性，可以完全禁用密碼認證，強制要求所有使用者使用 SSH 密鑰進行登入。這樣即使攻擊者獲得了某個使用者的密碼，也無法直接登入系統。
+
+sudo nano /etc/ssh/sshd_config
+PasswordAuthentication no
+UsePAM no  # 禁用 PAM
+sudo systemctl restart sshd
+
+# 1.5 設定個別使用者 SSH Config
+為每個使用者設置專屬的 SSH 配置：每個使用者都可以根據不同的需求，在本地配置自己的 SSH 設置。這些設置存儲在 ~/.ssh/config 文件中，可以用來為不同的遠程伺服器設置不同的連接參數，例如使用不同的密鑰、端口或特定的登入選項。
+
+nano ~/.ssh/config
+Host example
+    HostName example.com
+    User username
+    IdentityFile ~/.ssh/id_rsa
+    Port 2222
+
+Host example：這是一個標籤，代表一個特定的連接配置。
+HostName example.com：遠程伺服器的主機名或 IP 地址。
+User username：連接到遠程伺服器時使用的使用者名稱。
+IdentityFile ~/.ssh/id_rsa：指定使用的 SSH 私鑰文件。
+Port 2222：遠程伺服器的 SSH 端口號（如果默認的 22 被改變）。
+
+# 1.6 透過 SSH 直接執行指令（如關機、重啟服務）
+SSH 不僅可以用來進行遠程登入，還可以直接在遠程伺服器上執行命令，而不需要進行完整的登入會話。這非常有助於進行簡單的系統管理任務，如重啟服務或關閉系統。
+
+執行單個命令：ssh username@remote_host 'sudo systemctl restart apache2'
+執行系統關機：ssh username@remote_host 'sudo shutdown -h now'
+執行系統重啟：ssh username@remote_host 'sudo reboot'
+
+# 1.7 Port Forwarding
+SSH 端口轉發允許通過 SSH 隧道將一個網絡端口的流量重定向到另一個端口。這通常用於安全地訪問內部網絡資源，或者繞過防火牆或 NAT 限制。
+
+本地端口轉發（Local Port Forwarding）： 將本地端口的流量轉發到遠程服務器上的端口。
+ssh -L 8080:localhost:80 username@remote_host
+
+遠程端口轉發（Remote Port Forwarding）： 將遠程服務器端口的流量轉發到本地端口。
+ssh -R 8080:localhost:80 username@remote_host
+
+# 1.8 X11 Forwarding
+X11 轉發允許在遠程伺服器上運行的圖形應用程序顯示在你的本地桌面上。這對於需要使用 GUI 應用程序的遠程管理非常有用。
+
+sudo nano /etc/ssh/sshd_config
+X11Forwarding yes
+sudo systemctl restart sshd
+ssh -X username@remote_host
+
+# 1.9  Allow User / Group Login
+可以限制哪些使用者或群組可以通過 SSH 登入系統。這是一種有效的安全策略，特別是在管理大量使用者時。
+
+sudo nano /etc/ssh/sshd_config
+僅允許列出的使用者登入：AllowUsers user1 user2
+僅允許列出的群組成員登入：AllowGroups sshgroup
+sudo systemctl restart sshd
+
+# 1.10 Deny User / Group Login
+禁止特定使用者或群組登入：與 AllowUsers 和 AllowGroups 相對應，你也可以指定哪些使用者或群組不能通過 SSH 登入。這對於禁用特定使用者帳戶非常有用。
+
+DenyUsers user1 user2
+DenyGroups nogroup
+sudo systemctl restart sshd
