@@ -221,3 +221,72 @@ sudo systemctl restart sshd
 DenyUsers user1 user2
 DenyGroups nogroup
 sudo systemctl restart sshd
+
+1.1 setup nis server and client
+在伺服器上：
+安裝NIS套件：sudo apt-get install nis
+配置NIS域名： 編輯/etc/default/nis文件：sudo nano /etc/default/nis
+將NISSERVER設置為master，並提供域名，例如mydomain。
+
+配置NIS服務： 編輯/etc/yp.conf，以包含伺服器的主機名或IP地址。
+domain mydomain server server_hostname
+
+啟動並啟用NIS服務：sudo systemctl start nis
+sudo systemctl enable nis
+初始化NIS映射：sudo /usr/lib/yp/ypinit -m
+在客戶端上：
+安裝NIS套件：sudo apt-get install nis
+配置NIS域名： 編輯/etc/default/nis文件：sudo nano /etc/default/nis
+將NISSERVER設置為none，並指定NIS域名為mydomain。
+
+配置NIS服務： 編輯/etc/yp.conf，以包含伺服器的主機名或IP地址。domain mydomain server server_hostname
+配置nsswitch.conf文件： 修改/etc/nsswitch.conf文件，使其使用NIS進行某些服務：
+passwd:         compat nis
+group:          compat nis
+shadow:         compat nis
+啟動並啟用NIS服務：
+sudo systemctl start nis
+sudo systemctl enable nis
+
+1.2 allow client change password
+為了允許客戶端更改密碼，伺服器上需要運行rpc.yppasswdd服務。
+
+安裝rpc.yppasswdd：sudo apt-get install rpcbind
+啟動rpc.yppasswdd服務：
+sudo systemctl start rpcbind
+sudo systemctl enable rpcbind
+確保伺服器上的/etc/ypserv.conf文件允許更改密碼：sudo nano /etc/ypserv.conf
+確保包含以下行：passwd:      all
+
+1.3 server change password
+伺服器管理員可以使用以下命令更改用戶的密碼：sudo yppasswd username
+
+
+1.4 setup/assign start uid
+要為NIS管理的用戶指定起始UID，需在NIS伺服器上的/etc/login.defs文件中進行配置。
+
+編輯login.defs文件：sudo nano /etc/login.defs
+設置UID_MIN和UID_MAX值：
+UID_MIN 1000
+UID_MAX 60000
+
+
+1.5 list file/dir of server config
+NIS常見的配置文件和目錄包括：
+
+/etc/yp.conf：配置NIS域和伺服器。
+/var/yp/：包含NIS映射。
+/etc/default/nis：包含NIS域配置。
+
+1.6 service port and protocol      
+NIS使用幾個基於RPC的服務，通常在以下端口和協議上運行：
+
+端口111：由rpcbind使用。
+端口834：由ypserv使用。
+端口835：由ypbind使用。
+端口836：由yppasswdd使用。
+
+1.7 setup nis with enable firewall
+通過防火牆允許NIS通信：sudo ufw allow from <client-ip> to any port 111,834,835,836
+重新加載防火牆：sudo ufw reload
+啟用防火牆：sudo ufw enable
