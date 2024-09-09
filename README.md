@@ -286,63 +286,75 @@ NIS使用幾個基於RPC的服務，通常在以下端口和協議上運行：
 端口835：由ypbind使用。
 端口836：由yppasswdd使用。
 
-# 20240909
-# 1. Telnet
-## 1-1: Setup Telnet Server
-安裝 Telnet 服務器：
-sudo apt-get install xinetd telnetd
-啟用 Telnet 服務：
-打開配置文件 /etc/xinetd.d/telnet，確保 disable = no。
-如果文件不存在，創建該文件並寫入以下內容：
-service telnet
-{
-   flags       = REUSE
-   socket_type = stream
-   wait        = no
-   user        = root
-   server      = /usr/sbin/in.telnetd
-   log_on_failure += USERID
-   disable     = no
-}
-sudo service xinetd restart
+# 20240902
+# NFS 設置
+## 1-1 設置 NFS 伺服器和客戶端
 
-## 1-2: List File/Dir of Server Config
-Telnet 服務的主要配置文件位於：
+NFS 伺服器設置：
+安裝 NFS 伺服器：sudo apt update    sudo apt install nfs-kernel-server
+創建共享目錄（例如 /srv/nfs_share）：sudo mkdir -p /srv/nfs_share    sudo chown nobody:nogroup /srv/nfs_share
+編輯 /etc/exports 文件，允許客戶端訪問共享：/srv/nfs_share <client_ip>(rw,sync,no_subtree_check)
+應用配置並啟動 NFS 伺服器：sudo exportfs -a    sudo systemctl start nfs-kernel-server    sudo systemctl enable nfs-kernel-server
 
-/etc/xinetd.d/telnet
-/etc/xinetd.conf（可選）
-## 1-3: Service Port and Protocol
-Port: 23
-Protocol: TCP
+NFS 客戶端設置：
+安裝 NFS 客戶端：sudo apt update    sudo apt install nfs-common
+掛載 NFS 共享目錄：sudo mount <server_ip>:/srv/nfs_share /mnt
 
-# 2. FTP
-## 2-1: Setup FTP Server
-安裝 FTP 服務器（如 vsftpd）：
-sudo apt-get install vsftpd
-禁用匿名登入：anonymous_enable=NO
-啟用本地用戶登入：local_enable=YES  write_enable=YES
-重啟 FTP 服務：sudo service vsftpd restart
+## 1-2 使用 /etc/fstab 自動掛載
+在 NFS 客戶端 上，編輯 /etc/fstab 文件，以便在啟動時自動掛載 NFS 共享：<server_ip>:/srv/nfs_share /mnt nfs defaults 0 0
 
-## 2-2: Anonymous Browse Dir/File
-要啟用匿名瀏覽，請在 /etc/vsftpd.conf 中設置以下選項：anonymous_enable=YES
+## 1-3 列出伺服器的配置文件或目錄
+要列出當前的 NFS 出口配置：cat /etc/exports
+要查看當前活動的 NFS 掛載：showmount -e <server_ip>
 
-## 2-3: List File/Dir of Server Config
-FTP 服務器的配置文件：
+## 1-4 服務端口和協議
 
-/etc/vsftpd.conf
-用戶目錄默認位於 /srv/ftp 或 /var/ftp。
+NFS 通常使用以下端口：
+TCP/UDP 2049：NFS 本身的端口。
+111 端口（TCP 和 UDP）：Portmapper 服務，用於映射 RPC 服務的端口號。
 
-## 2-4: Service Port and Protocol
-Port: 21 (控制連接)，20（數據傳輸）
-Protocol: TCP
+要檢查當前 NFS 使用的端口：rpcinfo -p
 
-# 3. rsh / rlogin
-## 3-1: Setup rlogin
-安裝 rsh-server 和 rsh-client：sudo apt-get install rsh-server rsh-client
-確保 /etc/inetd.conf 中啟用了 rlogin 服務，如果該行存在但被註釋掉，取消註釋：login stream tcp nowait root /usr/sbin/tcpd /usr/sbin/in.rlogind
-編輯 /etc/hosts.equiv 或 ~/.rhosts 文件，允許指定主機進行無密碼登入。
+## 1-5 設置 NIS 並啟用防火牆
 
-/etc/hosts.equiv 允許全局主機。
-~/.rhosts 允許特定用戶的遠程登入。
+安裝 NIS：
+在伺服器和客戶端安裝 NIS：sudo apt install nis
+設置 NIS 域名：sudo domainname mynisdomain    echo "mynisdomain" | sudo tee /etc/defaultdomain
 
-重啟 inetd：sudo service inetd restart
+NIS 伺服器配置：
+編輯 /etc/yp.conf 文件，設置 NIS 域名和伺服器。
+啟動並啟用 ypserv 服務：sudo systemctl start ypserv    sudo systemctl enable ypserv
+
+NIS 客戶端配置：
+添加 NIS 域名到 /etc/yp.conf。
+編輯 /etc/nsswitch.conf 文件，配置使用 NIS 來解析 passwd、group 等服務。
+
+防火牆設置：
+使用 iptables 或 firewalld 開啟與 NIS 相關的流量（如 111 和 2049 端口）：sudo ufw allow 111/tcp    sudo ufw allow 111/udp    sudo ufw allow 2049/tcp    sudo ufw allow 2049/udp
+
+# NTP 設置
+## 2-1 Chrony
+
+安裝 Chrony：
+Chrony 是 ntpd 的替代品，用於時間同步：sudo apt install chrony
+
+Chrony 配置：
+編輯 /etc/chrony/chrony.conf 文件，添加 NTP 伺服器：server <ntp_server> iburst
+
+啟動並啟用 Chrony：sudo systemctl start chrony    sudo systemctl enable chrony
+
+## 2-2 NTP伺服器 & NTPDate/SNTP
+
+NTP 伺服器設置：
+安裝 ntp：sudo apt install ntp
+
+編輯 /etc/ntp.conf 文件，設置 NTP 伺服器：server <ntp_server> iburst
+
+NTPDate：
+使用 ntpdate 手動同步時間：sudo ntpdate <ntp_server>
+
+## 2-3 timedatectl / systemd-timesyncd 配置
+
+使用 timedatectl 配置時間同步：sudo timedatectl set-ntp true    sudo systemctl restart systemd-timesyncd
+
+檢查時間同步狀態：timedatectl status
