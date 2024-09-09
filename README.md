@@ -286,7 +286,63 @@ NIS使用幾個基於RPC的服務，通常在以下端口和協議上運行：
 端口835：由ypbind使用。
 端口836：由yppasswdd使用。
 
-1.7 setup nis with enable firewall
-通過防火牆允許NIS通信：sudo ufw allow from <client-ip> to any port 111,834,835,836
-重新加載防火牆：sudo ufw reload
-啟用防火牆：sudo ufw enable
+# 20240909
+# 1. Telnet
+## 1-1: Setup Telnet Server
+安裝 Telnet 服務器：
+sudo apt-get install xinetd telnetd
+啟用 Telnet 服務：
+打開配置文件 /etc/xinetd.d/telnet，確保 disable = no。
+如果文件不存在，創建該文件並寫入以下內容：
+service telnet
+{
+   flags       = REUSE
+   socket_type = stream
+   wait        = no
+   user        = root
+   server      = /usr/sbin/in.telnetd
+   log_on_failure += USERID
+   disable     = no
+}
+sudo service xinetd restart
+
+## 1-2: List File/Dir of Server Config
+Telnet 服務的主要配置文件位於：
+
+/etc/xinetd.d/telnet
+/etc/xinetd.conf（可選）
+## 1-3: Service Port and Protocol
+Port: 23
+Protocol: TCP
+
+# 2. FTP
+## 2-1: Setup FTP Server
+安裝 FTP 服務器（如 vsftpd）：
+sudo apt-get install vsftpd
+禁用匿名登入：anonymous_enable=NO
+啟用本地用戶登入：local_enable=YES  write_enable=YES
+重啟 FTP 服務：sudo service vsftpd restart
+
+## 2-2: Anonymous Browse Dir/File
+要啟用匿名瀏覽，請在 /etc/vsftpd.conf 中設置以下選項：anonymous_enable=YES
+
+## 2-3: List File/Dir of Server Config
+FTP 服務器的配置文件：
+
+/etc/vsftpd.conf
+用戶目錄默認位於 /srv/ftp 或 /var/ftp。
+
+## 2-4: Service Port and Protocol
+Port: 21 (控制連接)，20（數據傳輸）
+Protocol: TCP
+
+# 3. rsh / rlogin
+## 3-1: Setup rlogin
+安裝 rsh-server 和 rsh-client：sudo apt-get install rsh-server rsh-client
+確保 /etc/inetd.conf 中啟用了 rlogin 服務，如果該行存在但被註釋掉，取消註釋：login stream tcp nowait root /usr/sbin/tcpd /usr/sbin/in.rlogind
+編輯 /etc/hosts.equiv 或 ~/.rhosts 文件，允許指定主機進行無密碼登入。
+
+/etc/hosts.equiv 允許全局主機。
+~/.rhosts 允許特定用戶的遠程登入。
+
+重啟 inetd：sudo service inetd restart
